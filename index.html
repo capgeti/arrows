@@ -31,8 +31,10 @@
 <body>
 
 <div class="tools form-inline well">
+  <select class="btn" id="select_markup"></select>
+  <button class="btn" id="optionsButton">Options</button>
+  <span class="divider">|</span>
   <button class="btn" id="add_node_button"><i class="icon-plus"></i> Node</button>
-  <button class="btn" id="exportMarkupButton">Export Markup</button>
   <button class="btn" id="exportSvgButton">Export SVG</button>
   <button class="btn" id="chooseStyleButton">Choose Style</button>
   <label for="internalScale">Internal Scale</label>
@@ -43,7 +45,10 @@
 
 <div class="modal hide export-markup">
   <div class="modal-header">
-    <h3>Edit/Export markup</h3>
+    <h3>
+        Edit/Export markup
+        <input id="markup_title" type="text" value="A Title">
+    </h3>
   </div>
   <div class="modal-body">
     <textarea class="code">Some text</textarea>
@@ -51,6 +56,8 @@
   <div class="modal-footer">
     <a href="#" class="btn cancel">Cancel</a>
     <a href="#" class="btn btn-primary" id="save_markup">Save</a>
+    <a href="#" class="btn btn-primary" id="save_copy_markup">Save Copy</a>
+    <a href="#" class="btn btn-primary" id="remove_markup">Remove</a>
   </div>
 </div>
 <div class="modal hide choose-style">

@@ -1,18 +1,62 @@
 window.onload = function()
 {
     var graphModel;
-    if ( !localStorage.getItem( "graph-diagram-markup" ) )
-    {
-        graphModel = gd.model();
-        graphModel.createNode().x( 0 ).y( 0 );
-        save( formatMarkup() );
+
+    var markups = localStorage.getItem("graph-diagram-markups");
+    var storedMarkup = markups && JSON.parse(markups) || [];
+    var selectedMarkup = parseInt(window.location.hash.substr(1)) || 0;
+
+    // convert old markup
+    var oldMarkup = localStorage.getItem("graph-diagram-markup");
+    if (oldMarkup) {
+        storedMarkup.push({ title: "untitled", markup: oldMarkup});
+        localStorage.removeItem("graph-diagram-markup");
     }
-    if ( localStorage.getItem( "graph-diagram-style" ) )
-    {
-        d3.select( "link.graph-style" )
-            .attr( "href", localStorage.getItem( "graph-diagram-style" ) );
+
+    var selectUI = d3.select("#select_markup") ;
+
+    function updateFromModel() {
+        if (selectedMarkup >= storedMarkup.length) {
+            selectedMarkup = storedMarkup.length - 1;
+        }
+
+        if (selectedMarkup < 0) {
+            selectedMarkup = 0;
+            storedMarkup.push({title: "untitled"});
+        }
+
+        selectUI.selectAll("option").data(storedMarkup)
+            .text(function (d) {
+                return d.title;
+            })
+            .enter().append("option")
+            .text(function (d) {
+                return d.title;
+            });
+
+        selectUI.node().selectedIndex = selectedMarkup;
+
+        var markup = storedMarkup[selectedMarkup].markup;
+        if (markup) {
+            graphModel = parseMarkup(markup);
+        } else {
+            console.log("make new!");
+            graphModel = gd.model();
+            graphModel.createNode().x(50).y(140);
+
+            // TODO this patches a bug in graph-diagram.js# trying to access node.style
+            graphModel = parseMarkup(formatMarkup());
+        }
+
+        save();
+        draw();
     }
     graphModel = parseMarkup( localStorage.getItem( "graph-diagram-markup" ) );
+
+    selectUI.on('change', function () {
+        window.location.hash =  selectedMarkup = this.selectedIndex;
+        updateFromModel();
+    });
 
     var svg = d3.select("#canvas")
         .append("svg:svg")
@@ -94,10 +138,10 @@ window.onload = function()
             .call(diagram);
     }
 
-    function save( markup )
+    function save()
     {
-        localStorage.setItem( "graph-diagram-markup", markup );
-        localStorage.setItem( "graph-diagram-style", d3.select( "link.graph-style" ).attr( "href" ) );
+        storedMarkup[selectedMarkup].markup = formatMarkup();
+        localStorage.setItem("graph-diagram-markups", JSON.stringify(storedMarkup));
     }
 
     var newNode = null;
@@ -167,7 +211,7 @@ window.onload = function()
             }
         }
         newNode = null;
-        save( formatMarkup() );
+        save();
         diagram.scaling(gd.scaling.centerOrScaleDiagramToFitSvgSmooth);
         draw();
     }
@@ -175,7 +219,7 @@ window.onload = function()
     d3.select( "#add_node_button" ).on( "click", function ()
     {
         graphModel.createNode().x( 0 ).y( 0 );
-        save( formatMarkup() );
+        save();
         draw();
     } );
 
@@ -221,7 +265,8 @@ window.onload = function()
                     }
                 }
             });
-            save( formatMarkup() );
+            save();
+            gd.updateTextDerivedDimensions( graphModel );
             draw();
             cancelModal();
         }
@@ -229,7 +274,7 @@ window.onload = function()
         function deleteNode()
         {
             graphModel.deleteNode(node);
-            save( formatMarkup() );
+            save();
             draw();
             cancelModal();
         }
@@ -272,7 +317,8 @@ window.onload = function()
                     }
                 }
             });
-            save( formatMarkup() );
+            save();
+            gd.updateTextDerivedDimensions( graphModel );
             draw();
             cancelModal();
         }
@@ -280,7 +326,7 @@ window.onload = function()
         function reverseRelationship()
         {
             relationship.reverse();
-            save( formatMarkup() );
+            save();
             draw();
             cancelModal();
         }
@@ -288,7 +334,7 @@ window.onload = function()
         function deleteRelationship()
         {
             graphModel.deleteRelationship(relationship);
-            save( formatMarkup() );
+            save();
             draw();
             cancelModal();
         }
@@ -331,12 +377,13 @@ window.onload = function()
             .on( "click", cancelModal );
     }
 
-    var exportMarkup = function ()
+    var showOptions = function ()
     {
         appendModalBackdrop();
         d3.select( ".modal.export-markup" ).classed( "hide", false );
 
         var markup = formatMarkup();
+        d3.select("#markup_title").attr("value", storedMarkup[selectedMarkup].title);
         d3.select( "textarea.code" )
             .attr( "rows", markup.split( "\n" ).length * 2 )
             .node().value = markup;
@@ -353,14 +400,34 @@ window.onload = function()
 
     var useMarkupFromMarkupEditor = function ()
     {
-        var markup = d3.select( "textarea.code" ).node().value;
-        graphModel = parseMarkup( markup );
-        save( markup );
-        draw();
+        storedMarkup[selectedMarkup].markup = d3.select("textarea.code").node().value;
+        storedMarkup[selectedMarkup].title = d3.select("#markup_title").node().value;
+        updateFromModel();
         cancelModal();
     };
 
-    d3.select( "#save_markup" ).on( "click", useMarkupFromMarkupEditor );
+    var duplicateMarkup = function ()
+    {
+        var newTitle = d3.select("#markup_title").node().value;
+
+        if (newTitle === storedMarkup[selectedMarkup].title)
+            newTitle += " (copy)";
+
+        storedMarkup.push({title: newTitle, markup: d3.select("textarea.code").node().value});
+        selectedMarkup = storedMarkup.length - 1;
+        updateFromModel();
+        cancelModal();
+
+    };
+
+    var removeMarkup = function ()
+    {
+        selectUI.selectAll("option")[0][selectedMarkup].remove();
+        storedMarkup.splice(selectedMarkup, 1);
+        updateFromModel();
+
+        cancelModal();
+    };
 
     var exportSvg = function ()
     {
@@ -390,17 +457,22 @@ window.onload = function()
         graphModel.internalScale(d3.select("#internalScale").node().value);
         draw();
     }
+
+    updateFromModel();
+
     d3.select("#internalScale").node().value = graphModel.internalScale();
 
     d3.select(window).on("resize", draw);
-    d3.select("#internalScale" ).on("change", changeInternalScale);
+    d3.select( "#internalScale" ).on("change", changeInternalScale);
     d3.select( "#exportMarkupButton" ).on( "click", exportMarkup );
     d3.select( "#exportSvgButton" ).on( "click", exportSvg );
     d3.select( "#chooseStyleButton" ).on( "click", chooseStyle );
+    d3.select( "#optionsButton" ).on("click", showOptions);
+    d3.select( "#save_markup" ).on("click", useMarkupFromMarkupEditor);
+    d3.select( "#save_copy_markup" ).on("click", duplicateMarkup);
+    d3.select( "#remove_markup" ).on("click", removeMarkup);
     d3.selectAll( ".modal-dialog" ).on( "click", function ()
     {
         d3.event.stopPropagation();
     } );
-
-    draw();
 };
