@@ -48,10 +48,11 @@ window.onload = function()
             graphModel = parseMarkup(formatMarkup());
         }
 
+        d3.select("#internalScale").node().value = graphModel.internalScale();
+
         save();
         draw();
     }
-    graphModel = parseMarkup( localStorage.getItem( "graph-diagram-markup" ) );
 
     selectUI.on('change', function () {
         window.location.hash =  selectedMarkup = this.selectedIndex;
@@ -266,7 +267,6 @@ window.onload = function()
                 }
             });
             save();
-            gd.updateTextDerivedDimensions( graphModel );
             draw();
             cancelModal();
         }
@@ -318,7 +318,6 @@ window.onload = function()
                 }
             });
             save();
-            gd.updateTextDerivedDimensions( graphModel );
             draw();
             cancelModal();
         }
@@ -444,27 +443,36 @@ window.onload = function()
     d3.select("#saveStyle" ).on("click", function() {
         var selectedStyle = d3.selectAll("input[name=styleChoice]" )[0]
             .filter(function(input) { return input.checked; })[0].value;
-        d3.select("link.graph-style")
-            .attr("href", "style/" + selectedStyle);
 
-        graphModel = parseMarkup( localStorage.getItem( "graph-diagram-markup" ) );
-        save(formatMarkup());
-        draw();
+        setGraphStyle("style/" + selectedStyle);
+        setTimeout(function () {
+            updateFromModel()
+        }, 100);
+
         cancelModal();
     });
+
+    function setGraphStyle(style) {
+        d3.select("link.graph-style").attr("href", style);
+        localStorage.setItem("graph-diagram-style", style)
+    }
 
     function changeInternalScale() {
         graphModel.internalScale(d3.select("#internalScale").node().value);
         draw();
     }
 
-    updateFromModel();
+    var style = localStorage.getItem("graph-diagram-style");
+    if(style == undefined) style = "style/graph-style-chunky.css";
+    setGraphStyle(style);
 
-    d3.select("#internalScale").node().value = graphModel.internalScale();
+    setTimeout(function () {
+        updateFromModel();
+    }, 100);
+
 
     d3.select(window).on("resize", draw);
     d3.select( "#internalScale" ).on("change", changeInternalScale);
-    d3.select( "#exportMarkupButton" ).on( "click", exportMarkup );
     d3.select( "#exportSvgButton" ).on( "click", exportSvg );
     d3.select( "#chooseStyleButton" ).on( "click", chooseStyle );
     d3.select( "#optionsButton" ).on("click", showOptions);
